@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 from parser import *
 from datetime import datetime
+from urllib.parse import urljoin
 
 city = input('Enter a city_name:')
 check_in = input('Enter a check in date:')
@@ -31,11 +32,13 @@ print(hotel_list_url)
 print("HOTEL LIST URL:", hotel_list_url)
 
 start_time = datetime.now()
+
 with sync_playwright() as p:
+    main_url = "https://in.trip.com/"
 
     browser = p.chromium.launch(
         channel="chrome",
-        headless=False,
+        headless=True,
         args=[
             "--disable-blink-features=AutomationControlled",
             "--blink-settings=imagesEnabled=false",
@@ -44,29 +47,38 @@ with sync_playwright() as p:
 
     context = browser.new_context(
         permissions=["geolocation"],
-        geolocation={"latitude": 37.7749, "longitude": -122.4194} # Optional: Mock coordinates
+        geolocation={"latitude": 37.7749, "longitude": -122.4194}
     )
- 
-    context.on("response", parser)
 
     page = context.new_page()
+
     page.goto(hotel_list_url)
     page.wait_for_timeout(1000)
-    page.locator("a.hotelName").first.click()
-    page.wait_for_timeout(2000)
-    print("load....")
-    end_time = datetime.now()
-    print("------------------",end_time-start_time)
-    # import time
-    # for _ in range(30):
-    #     if captured:
-    #         break
-    #     time.sleep(0.5)
 
-    # if not captured:
-    #     print("api not found")
-    #     page.wait_for_timeout(8000)
+    select_hotel_url = urljoin(
+        main_url,
+        page.locator("a.hotelName").first.get_attribute("href")
+    )
+
+    print("=" * 50)
+    print(select_hotel_url)
+    print("=" * 50)
+
+    context.on(
+        "response",
+        lambda response: parser(response, select_hotel_url)
+    )
+
+    page.locator("a.hotelName").first.click()
+
+    page.wait_for_timeout(3000)
+
+    print("load....")
+
+    end_time = datetime.now()
+
+    print("------------------", end_time - start_time)
 
     browser.close()
-    print("Done")
 
+    print("Done")

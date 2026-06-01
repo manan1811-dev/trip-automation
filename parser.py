@@ -2,7 +2,7 @@ from playwright.sync_api import sync_playwright
 import json
 import requests
 
-def extract_bedroom_data(raw):
+def extract_bedroom_data(raw,url):
     payload = raw.get("data", raw)
 
     physic_map  = payload.get("physicRoomMap", {})   
@@ -36,6 +36,7 @@ def extract_bedroom_data(raw):
         confirm  = sr.get("confirmInfo", {})
         guests   = sr.get("guestCountInfo", {})
         title    = sr.get("titleInfo",  {})
+        total_price_info  = sr.get("totalPriceInfo", {})
 
         rates.append({
             "rate_key": rate_key,
@@ -55,6 +56,19 @@ def extract_bedroom_data(raw):
             "rooms_remaining": booking.get("remainRoomQuantity"),
             "sold_out": booking.get("isFullRoom", False),
             "offer_label": title.get("title"),
+            "total_price_info": {
+                "total": total_price_info.get("total", {}).get("content"),
+                "quantityDays": total_price_info.get("quantityDays", {}).get("title"),
+                "special_discount": [
+                    {item.get("title"): item.get("content")}
+                    for item in total_price_info.get("promotionTagList", [])
+                ],
+                "tax": [
+                    {item.get("title"): item.get("content")}
+                    for item in total_price_info.get("payTax", {}).get("items", [])
+                ]
+            }
+
         })
 
     rates.sort(key=lambda r: r["price_INR"] or float("inf"))
@@ -85,13 +99,14 @@ def extract_bedroom_data(raw):
 
     return {
         "search_details" : meta,
+        "hotel_url"      : url,
         "rooms"          : sorted_rooms,
         "total_rates"    : len(rates),
     }
 
 captured = {}   
 
-def parser(response):
+def parser(response,url):
     """Capture Trip.com room API response."""
     if "getHotelRoomListOversea" not in response.url:
         return
@@ -104,7 +119,7 @@ def parser(response):
         raw = response.json()
 
 
-        clean = extract_bedroom_data(raw)
+        clean = extract_bedroom_data(raw,url)
 
         with open("hotel_rooms_clean.json", "w", encoding="utf-8") as f:
             json.dump(clean, f, indent=4, ensure_ascii=False)
